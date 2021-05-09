@@ -24,6 +24,22 @@ guardText msg f = do
   txt <- messageText msg
   guard (f txt)
 
+-- | Simple pattern matcher
+data Pattern = Lit Text | Or Pattern Pattern | And Pattern Pattern | Neg Pattern
+  deriving (Show)
+
+(.&.) :: Pattern -> Pattern -> Pattern
+a .&. b = And a b
+
+(.|.) :: Pattern -> Pattern -> Pattern
+a .|. b = Or a b
+
+matchPattern :: Pattern -> Text -> Bool
+matchPattern (Lit s) t = s `isInfixOf` t
+matchPattern (Or a b) t = matchPattern a t || matchPattern b t
+matchPattern (And a b) t = matchPattern a t && matchPattern b t
+matchPattern (Neg a) t = not $ matchPattern a t
+
 -- | Rules based on incoming messages.
 data Rule = MkRule { runRule :: Message -> Maybe Action }
 
@@ -57,16 +73,24 @@ ruleRustDeepWater = MkRule $ \msg -> do
   let chat = messageChat msg
   guardChatname chat (== "rust_deep_water")
   dcRule msg <> luoRule msg
-  where dcRule msg = do
+  where -- DC老师
+        dcRule msg = do
           u <- messageFrom msg
           guardUsername u (== "DCjanus")
           guardText msg (== "好想认识可爱的双马尾少女啊")
           Just (Reply "#蒂吸老师犯病计数器")
+        -- 罗老师
+        selfPattern = Lit "俺" .|. Lit "我" .|. Lit "咱" .|. Lit "本人"
+        weakPattern = Lit "鶸"
+        notPattern = Lit "不"
+        luoPattern = (selfPattern .&. weakPattern .&. Neg notPattern)
+                     .|. Lit "本鶸鸡"
+                     .|. (selfPattern .&. Lit "啥都不懂")
         luoRule msg = do
           u <- messageFrom msg
           guardUsername u (== "driftluo")
           txt <- messageText msg
-          if flip all ["鶸", "俺"] (`isInfixOf` txt) || "本鶸鸡" `isInfixOf` txt
+          if matchPattern luoPattern txt
             then Just (Reply "#罗老师卖弱计数器")
             else Nothing
 
