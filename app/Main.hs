@@ -65,8 +65,10 @@ ruleRustDeepWater = MkRule $ \msg -> do
         luoRule msg = do
           u <- messageFrom msg
           guardUsername u (== "driftluo")
-          guardText msg (== "我好菜啊")
-          Just (Reply "#罗老师卖弱计数器")
+          txt <- messageText msg
+          if flip all ["鶸", "俺"] (`isInfixOf` txt) || "本鶸鸡" `isInfixOf` txt
+            then Just (Reply "#罗老师卖弱计数器")
+            else Nothing
 
 -- | Activated rules.
 rules :: Rule
