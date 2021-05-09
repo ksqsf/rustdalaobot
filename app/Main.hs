@@ -50,8 +50,14 @@ instance Monoid Rule where
   mempty = MkRule $ const Nothing
 
 -- Rules for rust main group
+patternFromWords :: [Text] -> Pattern
+patternFromWords = foldl1 (.|.) . map Lit
+
 dalaoWords :: [Text]
 dalaoWords = ["大佬", "大哥"]
+
+questionWords :: [Text]
+questionWords = ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
 
 message :: Text
 message = "不建议在交流中使用“大佬”“大哥”等不必要的称谓"
@@ -67,13 +73,26 @@ ruleRustMain = MkRule $ \msg -> do
     then Just (ReplyTo message id)
     else Nothing
 
+selfPattern = Lit "俺" .|. Lit "我" .|. Lit "咱" .|. Lit "本人"
+weakPattern = Lit "鶸"
+notPattern = Lit "不"
+luoPattern = (selfPattern .&. weakPattern .&. Neg notPattern)
+             .|. Lit "本鶸鸡"
+             .|. (selfPattern .&. Lit "啥都不懂")
+
 -- Rules for rust deep water group
 ruleRustDeepWater :: Rule
 ruleRustDeepWater = MkRule $ \msg -> do
   let chat = messageChat msg
   guardChatname chat (== "rust_deep_water")
-  dcRule msg <> luoRule msg
-  where -- DC老师
+  noDalaoRule msg <> dcRule msg <> luoRule msg
+  where -- no dalao rule
+        dalaoPattern = patternFromWords dalaoWords
+        questionPattern = patternFromWords questionWords
+        noDalaoRule msg = do
+          guardText msg (matchPattern (dalaoPattern .&. questionPattern))
+          Just (ReplyTo message (messageMessageId msg))
+        -- DC老师
         dcRule msg = do
           u <- messageFrom msg
           guardUsername u (== "DCjanus")
