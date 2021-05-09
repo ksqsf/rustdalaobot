@@ -42,6 +42,9 @@ message = "不建议在交流中使用“大佬”“大哥”等不必要的称
 
 ruleRustMain :: Rule
 ruleRustMain = MkRule $ \msg -> do
+  let chat = messageChat msg
+  title <- chatTitle chat
+  guard (title == "Rust 众")
   txt <- messageText msg
   let id = messageMessageId msg
   if any (`isInfixOf` txt) dalaoWords
