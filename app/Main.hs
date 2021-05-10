@@ -56,6 +56,15 @@ patternFromWords = foldl1 (.|.) . map Lit
 dalaoWords :: [Text]
 dalaoWords = ["大佬", "大哥"]
 
+weirdWords :: [Text]
+weirdWords = ["大哥哥"]
+
+dalaoPattern :: Pattern
+dalaoPattern = patternFromWords dalaoWords .&. (Neg (patternFromWords weirdWords))
+
+gratitudeWords :: [Text]
+gratitudeWords = ["谢"]
+
 questionWords :: [Text]
 questionWords = ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
 
@@ -69,16 +78,9 @@ ruleRustMain = MkRule $ \msg -> do
   guard (title == "Rust 众")
   txt <- messageText msg
   let id = messageMessageId msg
-  if any (`isInfixOf` txt) dalaoWords
+  if matchPattern dalaoPattern txt
     then Just (ReplyTo message id)
     else Nothing
-
-selfPattern = Lit "俺" .|. Lit "我" .|. Lit "咱" .|. Lit "本人"
-weakPattern = Lit "鶸"
-notPattern = Lit "不"
-luoPattern = (selfPattern .&. weakPattern .&. Neg notPattern)
-             .|. Lit "本鶸鸡"
-             .|. (selfPattern .&. Lit "啥都不懂")
 
 -- Rules for rust deep water group
 ruleRustDeepWater :: Rule
@@ -87,16 +89,16 @@ ruleRustDeepWater = MkRule $ \msg -> do
   guardChatname chat (== "rust_deep_water")
   noDalaoRule msg <> dcRule msg <> luoRule msg
   where -- no dalao rule
-        dalaoPattern = patternFromWords dalaoWords
         questionPattern = patternFromWords questionWords
+        gratitudePattern = patternFromWords gratitudeWords
         noDalaoRule msg = do
-          guardText msg (matchPattern (dalaoPattern .&. questionPattern))
+          guardText msg (matchPattern (dalaoPattern .&. (questionPattern .|. gratitudePattern)))
           Just (ReplyTo message (messageMessageId msg))
         -- DC老师
         dcRule msg = do
           u <- messageFrom msg
           guardUsername u (== "DCjanus")
-          guardText msg (== "好想认识可爱的双马尾少女啊")
+          guardText msg ("好想认识可爱的双马尾少女" `isInfixOf`)
           Just (Reply "#蒂吸老师犯病计数器")
         -- 罗老师
         selfPattern = Lit "俺" .|. Lit "我" .|. Lit "咱" .|. Lit "本人"
