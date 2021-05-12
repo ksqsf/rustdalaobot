@@ -2,8 +2,11 @@
 module Main where
 
 import Control.Monad
+import Control.Monad.IO.Class
+import Control.Concurrent
 import Control.Applicative
 import Data.Text (Text, isInfixOf)
+import System.Random
 import Telegram.Bot.API
 import Telegram.Bot.Simple
 import Telegram.Bot.Simple.Debug
@@ -99,7 +102,7 @@ ruleRustDeepWater = MkRule $ \msg -> do
           u <- messageFrom msg
           guardUsername u (== "DCjanus")
           guardText msg ("好想认识可爱的双马尾少女" `isInfixOf`)
-          Just (Reply "#蒂吸老师犯病计数器")
+          Just (ReplyDelay "#蒂吸老师犯病计数器")
         -- 罗老师
         selfPattern = Lit "俺" .|. Lit "我" .|. Lit "咱" .|. Lit "本人"
         weakPattern = Lit "鶸"
@@ -112,8 +115,16 @@ ruleRustDeepWater = MkRule $ \msg -> do
           guardUsername u (== "driftluo")
           txt <- messageText msg
           if matchPattern luoPattern txt
-            then Just (Reply "#罗老师卖弱计数器")
+            then Just (ReplyDelay "#罗老师卖弱计数器")
             else Nothing
+
+rulesDev :: Rule
+rulesDev = MkRule $ \msg -> do
+  let chat = messageChat msg
+  title <- chatTitle chat
+  guard $ title == "bot test group"
+  txt <- messageText msg
+  Just (ReplyDelay txt)
 
 -- | Activated rules.
 rules :: Rule
@@ -126,7 +137,7 @@ data Model = Model
 -- | Actions bot can perform.
 data Action =
     NoAction
-  | Reply Text -- ^ Simply send text.
+  | ReplyDelay Text -- ^ Simply send text with random delay
   | ReplyTo Text MessageId -- ^ Reply to a specific message.
   deriving (Show)
 
@@ -154,7 +165,10 @@ handleUpdate _ update = do
 -- | How to handle 'Action's.
 handleAction :: Action -> Model -> Eff Action Model
 handleAction NoAction model = pure model
-handleAction (Reply message) model = model <# do
+handleAction (ReplyDelay message) model = model <# do
+  liftIO $ do
+    delay <- randomRIO (0, 10)   -- delay ∈ [0, 10 secs]
+    threadDelay (delay * 1000000)
   replyText message
   return NoAction
 handleAction (ReplyTo message id) model = model <# do
