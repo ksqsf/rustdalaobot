@@ -113,7 +113,7 @@ ruleRustDeepWater = MkRule $ \msg -> do
           Just (ReplyTo message (messageMessageId msg))
         -- DC老师
         dcPattern = Lit "好想认识可爱的双马尾少女"
-        dcRule = ruleFromPatBySender "DCjanus" dcPattern (ReplyDelay "#蒂吸老师犯病计数器")
+        dcRule = ruleFromPatBySender "DCjanus" dcPattern (ReplyDelay "#蒂吸老湿犯病计数器")
         -- 罗老师
         luoPattern =     (selfPattern .&. weakPattern .&. Neg notPattern)
                      .|. Lit "本鶸鸡"
