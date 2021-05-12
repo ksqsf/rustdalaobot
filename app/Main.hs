@@ -62,14 +62,28 @@ dalaoWords = ["大佬", "大哥"]
 weirdWords :: [Text]
 weirdWords = ["大哥哥"]
 
-dalaoPattern :: Pattern
-dalaoPattern = patternFromWords dalaoWords .&. (Neg (patternFromWords weirdWords))
-
 gratitudeWords :: [Text]
 gratitudeWords = ["谢"]
 
 questionWords :: [Text]
 questionWords = ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
+
+dalaoPattern = patternFromWords dalaoWords .&. (Neg (patternFromWords weirdWords))
+selfPattern = patternFromWords ["俺", "我", "咱", "本人"]
+weakPattern = patternFromWords ["鶸", "菜", "弱"]
+notPattern = patternFromWords ["不"]
+
+guardPatBySender :: Message -> Text -> Pattern -> Maybe ()
+guardPatBySender msg username pat = do
+  u <- messageFrom msg
+  guardUsername u (== username)
+  txt <- messageText msg
+  guard $ matchPattern pat txt
+
+ruleFromPatBySender :: Text -> Pattern -> Action -> Message -> Maybe Action
+ruleFromPatBySender username pat action msg = do
+  guardPatBySender msg username pat
+  Just action
 
 message :: Text
 message = "不建议在交流中使用“大佬”“大哥”等不必要的称谓"
@@ -98,26 +112,18 @@ ruleRustDeepWater = MkRule $ \msg -> do
           guardText msg (matchPattern (dalaoPattern .&. (questionPattern .|. gratitudePattern)))
           Just (ReplyTo message (messageMessageId msg))
         -- DC老师
-        dcRule msg = do
-          u <- messageFrom msg
-          guardUsername u (== "DCjanus")
-          guardText msg ("好想认识可爱的双马尾少女" `isInfixOf`)
-          Just (ReplyDelay "#蒂吸老师犯病计数器")
+        dcPattern = Lit "好想认识可爱的双马尾少女"
+        dcRule = ruleFromPatBySender "DCjanus" dcPattern (ReplyDelay "#蒂吸老师犯病计数器")
         -- 罗老师
-        selfPattern = Lit "俺" .|. Lit "我" .|. Lit "咱" .|. Lit "本人"
-        weakPattern = Lit "鶸"
-        notPattern = Lit "不"
-        luoPattern = (selfPattern .&. weakPattern .&. Neg notPattern)
+        luoPattern =     (selfPattern .&. weakPattern .&. Neg notPattern)
                      .|. Lit "本鶸鸡"
                      .|. (selfPattern .&. Lit "啥都不懂")
-        luoRule msg = do
-          u <- messageFrom msg
-          guardUsername u (== "driftluo")
-          txt <- messageText msg
-          if matchPattern luoPattern txt
-            then Just (ReplyDelay "#罗老师卖弱计数器")
-            else Nothing
+        luoRule = ruleFromPatBySender "driftluo" luoPattern (ReplyDelay "#罗老师卖弱计数器")
+        -- hjj
+        hjjPattern = (selfPattern .|. Lit "hjj") .&. Lit "躺平"
+        hjjRule msg = ruleFromPatBySender "huangjj27" hjjPattern (ReplyDelay "#hjj又躺平了")
 
+-- Rules only for testing and debugging..
 rulesDev :: Rule
 rulesDev = MkRule $ \msg -> do
   let chat = messageChat msg
