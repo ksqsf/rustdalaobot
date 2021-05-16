@@ -33,18 +33,18 @@ dalaoPattern, selfPattern, weakPattern, notPattern :: Pattern
 dalaoPattern = patternFromWords dalaoWords .&. neg (patternFromWords weirdWords)
   where dalaoWords = ["大佬", "大哥"]
         weirdWords = ["大哥哥"]
-selfPattern = patternFromWords ["俺", "我", "咱", "本人"]
+selfPattern = patternFromWords ["俺", "我", "咱", "本", "人家", "伦家", "私", "在下", "妾", "老子", "不才", "自家", "鄙人", "敝人", "老娘", "老夫", "阮", "阿拉", "人哋", "偶", "藕", "小弟", "小妹", "爷", "👴", "哥", "姐", "吾", "余", "予", "卬", "洒家", "某", "朕", "孤", "哀家", "臣", "下官", "卑职", "仆", "僕", "小弟", "愚兄", "晚生", "老朽", "老叟", "老身", "姎", "贫道", "贫僧", "小僧", "草民", "小可", "小的"] .&. neg (lit "本子" .|. lit "笔记本" .|. lit "本本")
 weakPattern = patternFromWords ["鶸", "菜", "弱"]
 notPattern = patternFromWords ["不"]
 questionPattern = patternFromWords ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
 gratitudePattern = patternFromWords ["谢"]
 
+patternFromWords :: [Text] -> Pattern
+patternFromWords = foldl (.|.) (pure False) . map lit
+
 -- | Rules based on incoming messages. The algebra of rules always chooses the first applicable one.
 newtype Rule = MkRule { runRule :: Message -> Maybe Action }
   deriving (Semigroup, Monoid)
-
-patternFromWords :: [Text] -> Pattern
-patternFromWords = foldl (.|.) (pure False) . map lit
 
 ruleFromPatBySender :: Text -> Pattern -> Action -> Message -> Maybe Action
 ruleFromPatBySender username pat action msg = do
@@ -76,7 +76,6 @@ ruleRustDeepWater = MkRule $ \msg -> do
         dcRule = ruleFromPatBySender "DCjanus" dcPattern (ReplyDelay "#蒂吸老湿犯病计数器")
         -- 罗老师
         luoPattern =     selfPattern .&. weakPattern .&. neg notPattern
-                     .|. lit "本鶸鸡"
                      .|. selfPattern .&. lit "啥都不懂"
         luoRule = ruleFromPatBySender "driftluo" luoPattern (ReplyDelay "#罗老师卖弱计数器")
         -- hjj
