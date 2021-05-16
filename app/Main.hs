@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, GeneralizedNewtypeDeriving #-}
 module Main where
 
 import Control.Monad
@@ -39,14 +39,9 @@ notPattern = patternFromWords ["不"]
 questionPattern = patternFromWords ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
 gratitudePattern = patternFromWords ["谢"]
 
--- | Rules based on incoming messages.
-data Rule = MkRule { runRule :: Message -> Maybe Action }
-
-instance Semigroup Rule where
-  r1 <> r2 = MkRule $ \m -> runRule r1 m <|> runRule r2 m
-
-instance Monoid Rule where
-  mempty = MkRule $ const Nothing
+-- | Rules based on incoming messages. The algebra of rules always chooses the first applicable one.
+newtype Rule = MkRule { runRule :: Message -> Maybe Action }
+  deriving (Semigroup, Monoid)
 
 patternFromWords :: [Text] -> Pattern
 patternFromWords = foldl (.|.) (pure False) . map lit
@@ -110,8 +105,8 @@ data Action =
   deriving (Show)
 
 instance Semigroup Action where
-  NoAction <> a = a
-  a1 <> a2 = a1
+  NoAction <> b = b
+  a <> b = a
 
 -- | Bot application.
 bot :: BotApp Model Action
