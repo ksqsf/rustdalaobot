@@ -13,8 +13,8 @@ import Telegram.Bot.Simple.Debug
 import Telegram.Bot.Simple.UpdateParser
 
 -- | guards made better-looking
-satisfies :: (Monad m, Alternative m) => m a -> (a -> Bool) -> m ()
-satisfies x f = x >>= guard . f
+must :: (Monad m, Alternative m) => m a -> (a -> Bool) -> m ()
+must x f = x >>= guard . f
 
 -- | Simple pattern matcher
 type Pattern = Text -> Bool
@@ -48,8 +48,8 @@ newtype Rule = MkRule { runRule :: Message -> Maybe Action }
 
 ruleFromPatBySender :: Text -> Pattern -> Action -> Message -> Maybe Action
 ruleFromPatBySender username pat action msg = do
-  (messageFrom msg >>= userUsername) `satisfies` (== username)
-  messageText msg `satisfies` pat
+  (messageFrom msg >>= userUsername) `must` (== username)
+  messageText msg `must` pat
   Just action
 
 message :: Text
@@ -58,18 +58,18 @@ message = "不建议在交流中使用“大佬”“大哥”等不必要的称
 -- Rules for rust main group
 ruleRustMain :: Rule
 ruleRustMain = MkRule $ \msg -> do
-  chatTitle (messageChat msg) `satisfies` (== "Rust 众")
-  messageText msg `satisfies` dalaoPattern
+  chatTitle (messageChat msg) `must` (== "Rust 众")
+  messageText msg `must` dalaoPattern
   Just (ReplyTo message (messageMessageId msg))
 
 -- Rules for rust deep water group
 ruleRustDeepWater :: Rule
 ruleRustDeepWater = MkRule $ \msg -> do
-  chatUsername (messageChat msg) `satisfies` (== "rust_deep_water")
+  chatUsername (messageChat msg) `must` (== "rust_deep_water")
   noDalaoRule msg <> dcRule msg <> luoRule msg <> hjjRule msg
   where -- no dalao rule
         noDalaoRule msg = do
-          messageText msg `satisfies` (dalaoPattern .&. (questionPattern .|. gratitudePattern))
+          messageText msg `must` (dalaoPattern .&. (questionPattern .|. gratitudePattern))
           Just (ReplyTo message (messageMessageId msg))
         -- DC老师
         dcPattern = lit "好想认识可爱的双马尾少女"
@@ -85,7 +85,7 @@ ruleRustDeepWater = MkRule $ \msg -> do
 -- Rules only for testing and debugging..
 rulesDev :: Rule
 rulesDev = MkRule $ \msg -> do
-  chatTitle (messageChat msg) `satisfies` (== "bot test group")
+  chatTitle (messageChat msg) `must` (== "bot test group")
   messageText msg >>= Just . ReplyDelay
 
 -- | Activated rules.
@@ -120,7 +120,7 @@ bot = BotApp
 handleUpdate :: Model -> Update -> Maybe Action
 handleUpdate _ update = do
   msg <- updateMessage update
-  messageFrom msg `satisfies` (not . userIsBot)
+  messageFrom msg `must` (not . userIsBot)
   runRule rules msg
 
 -- | How to handle 'Action's.
