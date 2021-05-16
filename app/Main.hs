@@ -12,36 +12,34 @@ import Telegram.Bot.Simple
 import Telegram.Bot.Simple.Debug
 import Telegram.Bot.Simple.UpdateParser
 
-guardChatname :: Chat -> (Text -> Bool) -> Maybe ()
-guardChatname chat f = do
-  u <- chatUsername chat
-  guard (f u)
-
-guardUsername :: User -> (Text -> Bool) -> Maybe ()
-guardUsername user f = do
-  u <- userUsername user
-  guard (f u)
-
-guardText :: Message -> (Text -> Bool) -> Maybe ()
-guardText msg f = do
-  txt <- messageText msg
-  guard (f txt)
+-- | guards made better-looking
+satisfies :: (Monad m, Alternative m) => m a -> (a -> Bool) -> m ()
+satisfies x f = x >>= guard . f
 
 -- | Simple pattern matcher
-data Pattern = Lit Text | Or Pattern Pattern | And Pattern Pattern | Neg Pattern
-  deriving (Show)
+type Pattern = Text -> Bool
 
-(.&.) :: Pattern -> Pattern -> Pattern
-a .&. b = And a b
+lit = isInfixOf
+neg = fmap not
 
-(.|.) :: Pattern -> Pattern -> Pattern
-a .|. b = Or a b
+infixl 3 .&.
+(.&.) = liftA2 (&&)
 
-matchPattern :: Pattern -> Text -> Bool
-matchPattern (Lit s) t = s `isInfixOf` t
-matchPattern (Or a b) t = matchPattern a t || matchPattern b t
-matchPattern (And a b) t = matchPattern a t && matchPattern b t
-matchPattern (Neg a) t = not $ matchPattern a t
+infixl 2 .|.
+(.|.) = liftA2 (||)
+
+-- useful patterns
+dalaoWords, weirdWords, gratitudeWords, questionWords :: [Text]
+dalaoWords = ["大佬", "大哥"]
+weirdWords = ["大哥哥"]
+gratitudeWords = ["谢"]
+questionWords = ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
+
+dalaoPattern, selfPattern, weakPattern, notPattern :: Pattern
+dalaoPattern = patternFromWords dalaoWords .&. neg (patternFromWords weirdWords)
+selfPattern = patternFromWords ["俺", "我", "咱", "本人"]
+weakPattern = patternFromWords ["鶸", "菜", "弱"]
+notPattern = patternFromWords ["不"]
 
 -- | Rules based on incoming messages.
 data Rule = MkRule { runRule :: Message -> Maybe Action }
@@ -52,85 +50,53 @@ instance Semigroup Rule where
 instance Monoid Rule where
   mempty = MkRule $ const Nothing
 
--- Rules for rust main group
 patternFromWords :: [Text] -> Pattern
-patternFromWords = foldl1 (.|.) . map Lit
-
-dalaoWords :: [Text]
-dalaoWords = ["大佬", "大哥"]
-
-weirdWords :: [Text]
-weirdWords = ["大哥哥"]
-
-gratitudeWords :: [Text]
-gratitudeWords = ["谢"]
-
-questionWords :: [Text]
-questionWords = ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
-
-dalaoPattern = patternFromWords dalaoWords .&. (Neg (patternFromWords weirdWords))
-selfPattern = patternFromWords ["俺", "我", "咱", "本人"]
-weakPattern = patternFromWords ["鶸", "菜", "弱"]
-notPattern = patternFromWords ["不"]
-
-guardPatBySender :: Message -> Text -> Pattern -> Maybe ()
-guardPatBySender msg username pat = do
-  u <- messageFrom msg
-  guardUsername u (== username)
-  txt <- messageText msg
-  guard $ matchPattern pat txt
+patternFromWords = foldl (.|.) (pure False) . map lit
 
 ruleFromPatBySender :: Text -> Pattern -> Action -> Message -> Maybe Action
 ruleFromPatBySender username pat action msg = do
-  guardPatBySender msg username pat
+  (messageFrom msg >>= userUsername) `satisfies` (== username)
+  messageText msg `satisfies` pat
   Just action
 
 message :: Text
 message = "不建议在交流中使用“大佬”“大哥”等不必要的称谓"
 
+-- Rules for rust main group
 ruleRustMain :: Rule
 ruleRustMain = MkRule $ \msg -> do
-  let chat = messageChat msg
-  title <- chatTitle chat
-  guard (title == "Rust 众")
-  txt <- messageText msg
-  let id = messageMessageId msg
-  if matchPattern dalaoPattern txt
-    then Just (ReplyTo message id)
-    else Nothing
+  chatTitle (messageChat msg) `satisfies` (== "Rust 众")
+  messageText msg `satisfies` dalaoPattern
+  Just (ReplyTo message (messageMessageId msg))
 
 -- Rules for rust deep water group
 ruleRustDeepWater :: Rule
 ruleRustDeepWater = MkRule $ \msg -> do
-  let chat = messageChat msg
-  guardChatname chat (== "rust_deep_water")
-  noDalaoRule msg <> dcRule msg <> luoRule msg
+  chatUsername (messageChat msg) `satisfies` (== "rust_deep_water")
+  noDalaoRule msg <> dcRule msg <> luoRule msg <> hjjRule msg
   where -- no dalao rule
         questionPattern = patternFromWords questionWords
         gratitudePattern = patternFromWords gratitudeWords
         noDalaoRule msg = do
-          guardText msg (matchPattern (dalaoPattern .&. (questionPattern .|. gratitudePattern)))
+          messageText msg `satisfies` (dalaoPattern .&. (questionPattern .|. gratitudePattern))
           Just (ReplyTo message (messageMessageId msg))
         -- DC老师
-        dcPattern = Lit "好想认识可爱的双马尾少女"
+        dcPattern = lit "好想认识可爱的双马尾少女"
         dcRule = ruleFromPatBySender "DCjanus" dcPattern (ReplyDelay "#蒂吸老湿犯病计数器")
         -- 罗老师
-        luoPattern =     (selfPattern .&. weakPattern .&. Neg notPattern)
-                     .|. Lit "本鶸鸡"
-                     .|. (selfPattern .&. Lit "啥都不懂")
+        luoPattern =     selfPattern .&. weakPattern .&. neg notPattern
+                     .|. lit "本鶸鸡"
+                     .|. selfPattern .&. lit "啥都不懂"
         luoRule = ruleFromPatBySender "driftluo" luoPattern (ReplyDelay "#罗老师卖弱计数器")
         -- hjj
-        hjjPattern = (selfPattern .|. Lit "hjj") .&. Lit "躺平"
-        hjjRule msg = ruleFromPatBySender "huangjj27" hjjPattern (ReplyDelay "#hjj又躺平了")
+        hjjPattern = (selfPattern .|. lit "hjj") .&. lit "躺平"
+        hjjRule = ruleFromPatBySender "huangjj27" hjjPattern (ReplyDelay "#hjj又躺平了")
 
 -- Rules only for testing and debugging..
 rulesDev :: Rule
 rulesDev = MkRule $ \msg -> do
-  let chat = messageChat msg
-  title <- chatTitle chat
-  guard $ title == "bot test group"
-  txt <- messageText msg
-  Just (ReplyDelay txt)
+  chatTitle (messageChat msg) `satisfies` (== "bot test group")
+  messageText msg >>= Just . ReplyDelay
 
 -- | Activated rules.
 rules :: Rule
@@ -164,8 +130,7 @@ bot = BotApp
 handleUpdate :: Model -> Update -> Maybe Action
 handleUpdate _ update = do
   msg <- updateMessage update
-  sender <- messageFrom msg
-  guard (not (userIsBot sender))
+  messageFrom msg `satisfies` (not . userIsBot)
   runRule rules msg
 
 -- | How to handle 'Action's.
@@ -178,22 +143,20 @@ handleAction (ReplyDelay message) model = model <# do
   replyText message
   return NoAction
 handleAction (ReplyTo message id) model = model <# do
-  replyToMessage id message
+  reply $ ReplyMessage
+    { replyMessageText = message
+    , replyMessageParseMode = Nothing
+    , replyMessageDisableWebPagePreview = Nothing
+    , replyMessageDisableNotification = Just True
+    , replyMessageReplyToMessageId = Just id
+    , replyMessageReplyMarkup = Nothing
+    }
   return NoAction
-  where replyToMessage id msg = reply $ ReplyMessage
-          { replyMessageText = msg
-          , replyMessageParseMode = Nothing
-          , replyMessageDisableWebPagePreview = Nothing
-          , replyMessageDisableNotification = Just True
-          , replyMessageReplyToMessageId = Just id
-          , replyMessageReplyMarkup = Nothing
-          }
 
 -- | Run bot with a given 'Token'.
 run :: Token -> IO ()
 run token = do
   env <- defaultTelegramClientEnv token
---  startBot_ bot env
   startBot_ (traceBotDefault bot) env
 
 main :: IO ()
