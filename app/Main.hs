@@ -31,7 +31,7 @@ infixl 2 .|.
 -- useful patterns
 dalaoPattern, selfPattern, weakPattern, notPattern :: Pattern
 dalaoPattern = patternFromWords dalaoWords .&. neg (patternFromWords weirdWords)
-  where dalaoWords = ["大佬", "大哥"]
+  where dalaoWords = ["大佬", "大哥", "太佬", "巨佬", "奆佬"]
         weirdWords = ["大哥哥"]
 selfPattern = patternFromWords ["俺", "我", "咱", "本", "人家", "伦家", "私", "在下", "妾", "老子", "不才", "自家", "鄙人", "敝人", "老娘", "老夫", "阮", "阿拉", "人哋", "偶", "藕", "小弟", "小妹", "爷", "👴", "哥", "姐", "吾", "余", "予", "卬", "洒家", "某", "朕", "孤", "哀家", "臣", "下官", "卑职", "仆", "僕", "小弟", "愚兄", "晚生", "老朽", "老叟", "老身", "姎", "贫道", "贫僧", "小僧", "草民", "小可", "小的"] .&. neg (lit "本子" .|. lit "笔记本" .|. lit "本本")
 weakPattern = patternFromWords ["鶸", "菜", "弱"]
