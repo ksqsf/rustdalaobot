@@ -29,17 +29,15 @@ infixl 2 .|.
 (.|.) = liftA2 (||)
 
 -- useful patterns
-dalaoWords, weirdWords, gratitudeWords, questionWords :: [Text]
-dalaoWords = ["大佬", "大哥"]
-weirdWords = ["大哥哥"]
-gratitudeWords = ["谢"]
-questionWords = ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
-
 dalaoPattern, selfPattern, weakPattern, notPattern :: Pattern
 dalaoPattern = patternFromWords dalaoWords .&. neg (patternFromWords weirdWords)
+  where dalaoWords = ["大佬", "大哥"]
+        weirdWords = ["大哥哥"]
 selfPattern = patternFromWords ["俺", "我", "咱", "本人"]
 weakPattern = patternFromWords ["鶸", "菜", "弱"]
 notPattern = patternFromWords ["不"]
+questionPattern = patternFromWords ["?", "？", "何", "么", "吗", "啥", "咋", "帮"]
+gratitudePattern = patternFromWords ["谢"]
 
 -- | Rules based on incoming messages.
 data Rule = MkRule { runRule :: Message -> Maybe Action }
@@ -75,8 +73,6 @@ ruleRustDeepWater = MkRule $ \msg -> do
   chatUsername (messageChat msg) `satisfies` (== "rust_deep_water")
   noDalaoRule msg <> dcRule msg <> luoRule msg <> hjjRule msg
   where -- no dalao rule
-        questionPattern = patternFromWords questionWords
-        gratitudePattern = patternFromWords gratitudeWords
         noDalaoRule msg = do
           messageText msg `satisfies` (dalaoPattern .&. (questionPattern .|. gratitudePattern))
           Just (ReplyTo message (messageMessageId msg))
